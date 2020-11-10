@@ -112,8 +112,8 @@ $this->load->view('layout/topmenu');
                                       <br/>
                                     <br/>
                                     <button class="btn btn-primary btn-xs" ng-click="viewOnModal('<?php echo $value['address']; ?>', '<?php echo $value['venue']; ?>')"><i class='fa fa-map-marker'></i> View On Map</button>
-                                    <a href="<?php echo site_url("Events/editEvent/" . $value['aid']); ?>" class="btn btn-warning btn-xs" ><i class='fa fa-edit'></i> Edit</a>
-                                    <a href="<?php echo site_url("Events/deleteEvent/" . $value['aid']); ?>" class="btn btn-danger btn-xs" ><i class='fa fa-trash'></i> Delete</a>
+                                    <a href="<?php echo site_url("Events/editEvent/" . $value['id']); ?>" class="btn btn-warning btn-xs" ><i class='fa fa-edit'></i> Edit</a>
+                                    <a href="<?php echo site_url("Events/deleteEvent/" . $value['id']); ?>" class="btn btn-danger btn-xs" ><i class='fa fa-trash'></i> Delete</a>
                                    
                                 </td>
                             </tr>

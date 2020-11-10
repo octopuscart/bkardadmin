@@ -216,7 +216,6 @@ class Api extends REST_Controller {
             "password" => $password,
             "usercode" => $usercode,
             "datetime" => date("Y-m-d H:i:s a"),
-            "profile_image" => $profileimageurl,
         );
         $this->db->where('email', $email);
         $query = $this->db->get('app_user');
@@ -229,6 +228,44 @@ class Api extends REST_Controller {
             $this->response(array("status" => "200", "userdata" => $userdata));
         } else {
             $this->db->insert('app_user', $regArray);
+            $this->response(array("status" => "200", "userdata" => $regArray));
+        }
+    }
+
+    function registrationMobile_post() {
+        $this->config->load('rest', TRUE);
+        header('Access-Control-Allow-Origin: *');
+        header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
+        $name = $this->post('name');
+        $email = $this->post('email');
+        $password = $this->post('password');
+        $contact_no = "";
+
+        $usercode = rand(10000000, 99999999);
+
+        $regArray = array(
+            "name" => $name,
+            "email" => $email,
+            "contact_no" => $contact_no,
+            "password" => $password,
+            "usercode" => "",
+            "datetime" => date("Y-m-d H:i:s a"),
+        );
+        $this->db->where('email', $email);
+        $query = $this->db->get('app_user');
+        $userdata = $query->row();
+        if ($userdata) {
+
+
+            $this->response(array("status" => "300", "userdata" => $userdata, "message" => "Your Have Already Registered."));
+        } else {
+            $this->db->insert('app_user', $regArray);
+            $last_id = $this->db->insert_id();
+            $usercoden = $usercode . $last_id;
+            $this->db->set("usercode", $usercoden);
+            $this->db->where('id', $last_id); //set column_name and value in which row need to update
+            $this->db->update("app_user");
+            $regArray['usercode'] = $usercoden;
             $this->response(array("status" => "200", "userdata" => $regArray));
         }
     }
@@ -260,37 +297,54 @@ class Api extends REST_Controller {
         $this->config->load('rest', TRUE);
         header('Access-Control-Allow-Origin: *');
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
-        $profiledata = array(
-            'user_id' => $this->post('user_id'),
-            'scanner_id' => $this->post('scanner_id'),
-            'card_link' => "",
-            'datetime' => date("Y-m-d H:i:s a"),
-        );
-        $scanner_id = $this->post('scanner_id');
+        $scannerid = $this->post('scanner_id');
         $user_id = $this->post('user_id');
-        $this->db->where('user_id', $user_id);
-        $this->db->where('scanner_id', $scanner_id);
-        $query = $this->db->get('card_share');
-        $userdata = $query->row();
-        if ($userdata) {
-            $this->response(array("msg" => "Card Already Saved."));
+
+        $this->db->where('card_id', $scannerid);
+        $query = $this->db->get('card');
+        $carddata = $query->row();
+
+        if ($carddata) {
+
+            $receiver_id = $carddata->user_id;
+            $card_id = $carddata->id;
+            $sender_id = $user_id;
+
+            $regArray = array(
+                "message" => "Card Scan",
+                "sender" => $sender_id,
+                "receiver" => $receiver_id,
+                "card_id" => $card_id,
+                "datetime" => date("Y-m-d H:i:s a"),
+                "connection" => "Yes",
+            );
+            $this->db->where('card_id', $card_id);
+            $this->db->where('receiver', $receiver_id);
+            $this->db->where("sender", $sender_id);
+            $query = $this->db->get('card_user_connection');
+            $connectobj = $query->row_array();
+            if ($connectobj) {
+                $this->response(array("message" => "Card Already Saved", "title" => "Already Saved"));
+            } else {
+                $this->db->insert('card_user_connection', $regArray);
+                $last_id = $this->db->insert_id();
+                $this->response(array("message" => "Card has been saved..", "title" => "Card Saved"));
+            }
         } else {
-            $this->db->insert('card_share', $profiledata);
-            $this->response(array("msg" => "Card Has Been Saved."));
+            $this->response(array("message" => "Invalid card scanned.", "title" => "Card Not Found"));
         }
     }
 
     function getUsersCard_get($user_id) {
-        $this->db->where('user_id', $user_id);
-        $query = $this->db->get('card_share');
-        $userdata = $query->result_array();
+        $cartlist = $this->Product_model->checkUserConnectionCard($user_id);
+
         $usercarddata = [];
-        foreach ($userdata as $key => $value) {
-            $this->db->where('card_id', $value['scanner_id']);
+        foreach ($cartlist as $key => $value) {
+            $this->db->where('id', $value['card_id']);
             $query = $this->db->get('card');
             $user = $query->row();
             if ($user) {
-                $user->cardid = $value['id'];
+
 
 //            $user->qrcode = base_url() . "assets/usercard/" . $user->cardimage;
                 array_push($usercarddata, $user);
@@ -320,7 +374,8 @@ class Api extends REST_Controller {
         $usercardlist = [];
         foreach ($usercards as $key => $value) {
             $user_ids = $value['user_id'];
-            $usercheck = $this->Product_model->checkUserConnection($user_id, $user_ids);
+            $cart_id = $value['id'];
+            $usercheck = $this->Product_model->checkUserConnection($user_id, $user_ids, $cart_id);
 
             if ($usercheck) {
                 $value['connected'] = 'Yes';
@@ -359,7 +414,16 @@ class Api extends REST_Controller {
         $this->db->insert('card', $regArray);
         $last_id = $this->db->insert_id();
 
+        $userid = $this->post('user_id');
+
+        $this->db->where('id', $userid);
+        $query = $this->db->get('app_user');
+        $userdata = $query->row();
+
+        $usercode = $userdata->usercode;
+
         $cardid = $usercode . "" . $last_id;
+
         $imagepath = base_url() . "assets/userqr/" . $cardid . ".png";
         $this->db->set("card_id", $cardid);
         $this->db->set("qrcode", "yes");
@@ -388,13 +452,29 @@ class Api extends REST_Controller {
     }
 
     function eventDetails_get($event_id) {
-        $this->db->where("aid", $event_id);
+        $this->db->where("id", $event_id);
         $query = $this->db->get('events');
         $eventDetails = $query->row_array();
         $imagepath = base_url() . "assets/media/";
         $eventDetails['image'] = $imagepath . $eventDetails['image'];
         $eventDetails['map'] = "https://maps.google.com/?q=" . $eventDetails['venue'] . "+" . $eventDetails['address'] . "&output=embed";
         $this->response($eventDetails);
+    }
+
+    function joinEvent_post() {
+        $this->config->load('rest', TRUE);
+        header('Access-Control-Allow-Origin: *');
+        header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
+        $profiledata = array(
+            'user_id' => $this->post('user_id'),
+            'event_id' => $this->post('event_id'),
+            'package_id' => $this->post('package_id'),
+            'join_date' => date("Y-m-d"),
+            'join_time' => date("H:i:s a"),
+            "join_code" => "",
+            "status" => ""
+        );
+        $this->response(array("message" => "Joined"));
     }
 
     //end of event controller']
@@ -404,21 +484,24 @@ class Api extends REST_Controller {
     function userConnection_post() {
         $sender = $this->post('sender');
         $receiver = $this->post('receiver');
+        $card_id = $this->post('card_id');
         $regArray = array(
             "message" => $this->post('message'),
             "sender" => $this->post('sender'),
             "receiver" => $this->post('receiver'),
+            "card_id" => $this->post('card_id'),
             "datetime" => date("Y-m-d H:i:s a"),
             "connection" => "No",
         );
+        $this->db->where('card_id', $card_id);
         $this->db->where('receiver', $receiver);
         $this->db->where("sender", $sender);
-        $query = $this->db->get('user_connection');
+        $query = $this->db->get('card_user_connection');
         $connectobj = $query->row_array();
         if ($connectobj) {
             $this->response(array("message" => "Your request already sent.", "title" => "Already Sent"));
         } else {
-            $this->db->insert('user_connection', $regArray);
+            $this->db->insert('card_user_connection', $regArray);
             $last_id = $this->db->insert_id();
             $this->response(array("message" => "Your request has been sent.", "title" => "Request Sent"));
         }
@@ -430,10 +513,10 @@ class Api extends REST_Controller {
         if ($rtype == 'accept') {
             $this->db->set("connection", "Yes");
             $this->db->where('id', $connection_id); //set column_name and value in which row need to update
-            $this->db->update("user_connection");
+            $this->db->update("card_user_connection");
         } else {
             $this->db->where('id', $connection_id); //set column_name and value in which row need to update
-            $this->db->delete("user_connection");
+            $this->db->delete("card_user_connection");
         }
     }
 
@@ -522,7 +605,7 @@ SELECT * FROM user_message where sender = $user_id and receiver = $connect_id
         $this->config->load('rest', TRUE);
         header('Access-Control-Allow-Origin: *');
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
-      
+
         $visibilitytype = $visibility ? 'public' : 'private';
         $regArray = array(
             "name" => $this->post('name'),

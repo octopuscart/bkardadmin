@@ -40,19 +40,19 @@ class Event_model extends CI_Model {
 
     public function EventDataAll($user_id = 0) {
         $date = date("Y-m-d");
-        $this->db->where('date>=', $date);
+        $this->db->where('end_date>=', $date);
         if ($user_id) {
             $this->db->where('user_id', $user_id);
         }
         $this->db->group_by('days');
-        $this->db->order_by('date desc');
+        $this->db->order_by('end_date desc');
         $query = $this->db->get('events');
         $countryAppointment = $query->result_array();
         $appointmentData = array();
         foreach ($countryAppointment as $akey => $avalue) {
-            $aid = $avalue['days'];
-            $this->db->where('days', $aid);
-            $query = $this->db->get('events');
+            $aid = $avalue['id'];
+            $this->db->where('event_id', $aid);
+            $query = $this->db->get('events_dates');
             $timeData = $query->result_array();
 
             $this->db->where('id', $avalue['user_id']);

@@ -195,11 +195,9 @@ where pa.product_id=$product_id ";
 
     function getUserNotificaions($user_id) {
         $query = "SELECT id, sender, receiver, message, datetime, tablename from (
-                  SELECT id, sender, receiver, message, datetime, 'user_message' as tablename 
-                  FROM user_message where receiver = $user_id and read_status = 0
-                  UNION
-                  SELECT id, sender, receiver, message, datetime, 'user_connection' as tablename  
-                  FROM user_connection where CONNECTION = 'No' and receiver = $user_id
+                 
+                  SELECT id, sender, receiver, message, datetime, 'card_user_connection' as tablename  
+                  FROM card_user_connection where CONNECTION = 'No' and receiver = $user_id
                   ) as notification order by datetime desc";
         $query = $this->db->query($query);
         $notification = $query->result_array();
@@ -207,9 +205,9 @@ where pa.product_id=$product_id ";
         foreach ($notification as $key => $value) {
             $sid = $value['sender'];
             $userdata = $this->getUserDetails($sid);
-            $value['profile_image'] = $userdata['profile_image'];
+            $value['profile_image'] = "";
             $value['name'] = $userdata['name'];
-            if ($value['tablename'] == 'user_connection') {
+            if ($value['tablename'] == 'card_user_connection') {
                 $value['title'] = 'New Connect Request From ' . $userdata['name'];
             } else {
                 $value['title'] = 'Message From ' . $userdata['name'];
@@ -219,14 +217,28 @@ where pa.product_id=$product_id ";
         return $notificationarray;
     }
     
-    function checkUserConnection($user_s, $user_d){
+    function checkUserConnection($user_s, $user_d, $card_id){
          $query = "
-                  SELECT id, sender, receiver, message, datetime FROM user_connection
-                  where (sender = $user_s and receiver = $user_d) and connection = 'Yes'
+                  SELECT id, sender, receiver, message, datetime FROM card_user_connection
+                  where (sender = $user_s and receiver = $user_d and card_id=$card_id) and connection = 'Yes'
                   union
-                  SELECT id, sender, receiver, message, datetime FROM user_connection
-                  where (receiver = $user_s and sender = $user_d) and connection  = 'Yes'
+                  SELECT id, sender, receiver, message, datetime FROM card_user_connection
+                  where (receiver = $user_s and sender = $user_d and card_id=$card_id) and connection  = 'Yes'
                   ";
+        $query = $this->db->query($query);
+        $checkconnection = $query->result_array();
+        return $checkconnection;
+    }
+    
+    function checkUserConnectionCard($user_s){
+         $query = "
+             select card_id from (
+                  SELECT card_id FROM card_user_connection
+                  where sender = $user_s  and connection = 'Yes'
+                  union
+                  SELECT card_id FROM card_user_connection
+                  where receiver = $user_s  and connection  = 'Yes'
+                  ) as card_table where card_id not in (select id from card where user_id=$user_s) and card_id";
         $query = $this->db->query($query);
         $checkconnection = $query->result_array();
         return $checkconnection;
