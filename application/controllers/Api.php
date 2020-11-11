@@ -335,22 +335,28 @@ class Api extends REST_Controller {
         }
     }
 
-    function getUsersCard_get($user_id) {
+    function getUsersSavedCard_get($user_id) {
         $cartlist = $this->Product_model->checkUserConnectionCard($user_id);
-
         $usercarddata = [];
         foreach ($cartlist as $key => $value) {
             $this->db->where('id', $value['card_id']);
             $query = $this->db->get('card');
             $user = $query->row();
             if ($user) {
-
+                $user->connection_id = $value['id'];
 
 //            $user->qrcode = base_url() . "assets/usercard/" . $user->cardimage;
                 array_push($usercarddata, $user);
             }
         }
         return $this->response($usercarddata);
+    }
+
+    function removeSavedCard_post($connectionid) {
+        $connectid = $this->post("connection_id");
+        $this->db->where('id', $connectid);
+        $this->db->delete('card_user_connection');
+         $this->response(array("message" => "Card has been removed..", "title" => "Card Removed"));
     }
 
     function removeUsersCard_get($cardid) {

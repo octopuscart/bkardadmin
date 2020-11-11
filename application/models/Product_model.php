@@ -232,11 +232,11 @@ where pa.product_id=$product_id ";
     
     function checkUserConnectionCard($user_s){
          $query = "
-             select card_id from (
-                  SELECT card_id FROM card_user_connection
+             select card_id, id from (
+                  SELECT card_id, id FROM card_user_connection
                   where sender = $user_s  and connection = 'Yes'
                   union
-                  SELECT card_id FROM card_user_connection
+                  SELECT card_id, id FROM card_user_connection
                   where receiver = $user_s  and connection  = 'Yes'
                   ) as card_table where card_id not in (select id from card where user_id=$user_s) and card_id";
         $query = $this->db->query($query);
