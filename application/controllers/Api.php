@@ -352,7 +352,7 @@ class Api extends REST_Controller {
         return $this->response($usercarddata);
     }
 
-    function removeSavedCard_post($connectionid) {
+    function removeSavedCard_post() {
         $connectid = $this->post("connection_id");
         $this->db->where('id', $connectid);
         $this->db->delete('card_user_connection');
