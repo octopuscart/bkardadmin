@@ -220,10 +220,10 @@ where pa.product_id=$product_id ";
     function checkUserConnection($user_s, $user_d, $card_id){
          $query = "
                   SELECT id, sender, receiver, message, datetime FROM card_user_connection
-                  where (sender = $user_s and receiver = $user_d and card_id=$card_id) and connection = 'Yes'
+                  where (receiver = $user_s and card_id=$card_id) and connection = 'Yes'
                   union
                   SELECT id, sender, receiver, message, datetime FROM card_user_connection
-                  where (receiver = $user_s and sender = $user_d and card_id=$card_id) and connection  = 'Yes'
+                  where (sender = $user_s and card_id=$card_id) and connection  = 'Yes'
                   ";
         $query = $this->db->query($query);
         $checkconnection = $query->result_array();
