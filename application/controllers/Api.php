@@ -356,7 +356,7 @@ class Api extends REST_Controller {
         $connectid = $this->post("connection_id");
         $this->db->where('id', $connectid);
         $this->db->delete('card_user_connection');
-         $this->response(array("message" => "Card has been removed..", "title" => "Card Removed"));
+        $this->response(array("message" => "Card has been removed..", "title" => "Card Removed"));
     }
 
     function removeUsersCard_get($cardid) {
@@ -383,10 +383,10 @@ class Api extends REST_Controller {
             $cart_id = $value['id'];
             $usercheck = $this->Product_model->checkUserConnection($user_id, $user_ids, $cart_id);
 
-            if ($usercheck) {
-                $value['connected'] = 'Yes';
+            if (isset($usercheck['connection'])) {
+                $value['connected'] = $usercheck['connection'];
             } else {
-                $value['connected'] = 'No';
+                $value['connected'] = '-';
             }
             array_push($usercardlist, $value);
         }
@@ -537,7 +537,15 @@ class Api extends REST_Controller {
 
     function notificaioncount_get($user_id) {
         $notificationarray = $this->Product_model->getUserNotificaions($user_id);
-        $this->response(array("count" => count($notificationarray)));
+        $this->db->select("id");
+        $this->db->where("receiver", $user_id);
+        $this->db->where("read_status", "0");
+        $query = $this->db->get("user_message");
+        $messagearray = $query->row_array();
+
+        $messagearraycount = $messagearray ? count($messagearray) : 0;
+
+        $this->response(array("notification_count" => count($notificationarray), "message_count" => $messagearraycount));
     }
 
     //end of notification Controller
@@ -560,11 +568,11 @@ class Api extends REST_Controller {
     }
 
     function getLastMessage($user_id, $connect_id) {
-        $msquery = "select  message, datetime from 
-(SELECT * FROM user_message where sender = $connect_id and receiver = $user_id 
+        $msquery = "select  message, datetime, id, read_status from 
+(SELECT * FROM user_message where sender = $connect_id and receiver = $user_id
 UNION
-SELECT * FROM user_message where sender = $user_id and receiver = $connect_id
- ) as usermessage order by id limit 0, 1";
+SELECT * FROM user_message where sender = $user_id and receiver = $connect_id   
+ ) as usermessage order by id desc limit 0, 1";
         $query = $this->db->query($msquery);
         $messagearray = $query->row_array();
         return $messagearray;
@@ -594,6 +602,11 @@ SELECT * FROM user_message where sender = $user_id and receiver = $connect_id
         $this->db->where('receiver', $user_s);
         $this->db->where('sender', $user_r);
         $this->db->update("user_message");
+
+        $this->db->where('id', $user_r); //set column_name and value in which row need to update
+        $query = $this->db->get("app_user");
+        $userobj = $query->row();
+
         $query = " select
             message, datetime, read_status, sender, receiver from
             (select message, datetime, read_status, sender, receiver from user_message where sender = $user_s and receiver = $user_r
@@ -604,7 +617,7 @@ SELECT * FROM user_message where sender = $user_id and receiver = $connect_id
 
         $query = $this->db->query($query);
         $messagearray = $query->result_array();
-        $this->response($messagearray);
+        $this->response(array("messges" => $messagearray, "user" => $userobj));
     }
 
     function postEventWall_post() {
