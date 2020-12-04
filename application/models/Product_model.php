@@ -218,7 +218,7 @@ where pa.product_id=$product_id ";
     }
     
     function checkUserConnection($user_s, $user_d, $card_id){
-         echo $query = "
+         $query = "
                   SELECT id, sender, receiver, message, datetime, connection FROM card_user_connection
                   where (sender = $user_s and receiver = $user_d and card_id=$card_id)
                   union
