@@ -378,6 +378,7 @@ class Api extends REST_Controller {
         $usercards = $query->result_array();
         $usercardlist = $usercards;
         $usercardlist = [];
+        echo "hello";
         foreach ($usercards as $key => $value) {
             $user_ids = $value['user_id'];
             $cart_id = $value['id'];
