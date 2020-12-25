@@ -439,6 +439,42 @@ class Api extends REST_Controller {
         $this->response(array("status" => "200", "userdata" => $regArray));
     }
 
+    function editCard_post($card_id) {
+        $this->config->load('rest', TRUE);
+        header('Access-Control-Allow-Origin: *');
+        header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
+        $visibility = $this->post("visibiliey");
+        $visibilitytype = $visibility ? 'public' : 'private';
+        $regArray = array(
+            "name" => $this->post('name'),
+            "email" => $this->post('email'),
+            "contact_no" => $this->post('contact_no'),
+            "company_name" => $this->post('company'),
+            "designation" => $this->post('designation'),
+            "industry" => $this->post('industry'),
+            "address1" => $this->post('address1'),
+            "address2" => $this->post('address2'),
+            "country" => $this->post('country'),
+            "state" => $this->post('state'),
+            "city" => $this->post('city'),
+            "datetime" => date("Y-m-d H:i:s a"),
+            "user_id" => $this->post('user_id'),
+            "card_type" => $this->post("card_type"),
+            "visibility" => $visibilitytype,
+        );
+        $this->db->set($regArray);
+        $this->db->where('id', $card_id); //set column_name and value in which row need to update
+        $this->db->update("card");
+        $this->response(array("status" => "200", "userdata" => $regArray));
+    }
+
+    function getEditCard_get($card_id) {
+        $this->db->where("id", $card_id);
+        $query = $this->db->get('card');
+        $carddetails = $query->row();
+        $this->response($carddetails);
+    }
+
     function removeCard_post() {
         $card_id = $this->post('card_id');
         $this->db->where('card_id', $card_id); //set column_name and value in which row need to update
@@ -504,6 +540,19 @@ class Api extends REST_Controller {
         $this->db->where("sender", $sender);
         $query = $this->db->get('card_user_connection');
         $connectobj = $query->row_array();
+        
+        $messageArray = array(
+            "message" => $this->post('message'),
+            "sender" => $this->post('sender'),
+            "receiver" => $this->post('receiver'),
+            "datetime" => date("Y-m-d H:i:s a"),
+            "read_status" => "0",
+        );
+
+        $this->db->insert('user_message', $messageArray);
+        $last_message_id = $this->db->insert_id();
+        
+        
         if ($connectobj) {
             $this->response(array("message" => "Your request already sent.", "title" => "Already Sent"));
         } else {
