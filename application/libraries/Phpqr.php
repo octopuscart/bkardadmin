@@ -17,7 +17,7 @@ class Phpqr {
     }
 
     public function showcode($text) {
-        return QRcode::svg($text);
+        return QRcode::png($text, false, "L", "20", "2");
     }
 
 }

@@ -8,6 +8,7 @@ class Apiv2 extends REST_Controller {
     public function __construct() {
         parent::__construct();
         $this->load->model('Product_model');
+        $this->load->model('Card_model');
         $this->load->model('Event_model');
         $this->load->library('session');
         $this->checklogin = $this->session->userdata('logged_in');
@@ -101,30 +102,9 @@ class Apiv2 extends REST_Controller {
         $this->response(array("status" => "done"));
     }
 
-    function getUserCard_get($userid) {
-        $this->db->where('card_id', $userid);
-        $query = $this->db->get('card');
-        $userdata = $query->row_array();
-        $userdata['qrcode'] = base_url() . "assets/userqr/" . $userdata['card_id'] . ".png";
-        $this->response($userdata);
-    }
-
-    function createUserQrCode($cardid) {
-        $this->load->library('phpqr');
-        $filelocation = APPPATH . "../assets/userqr/" . $cardid . ".png";
-        $linkdata = site_url("Api/getUserCard/" . $cardid);
-        $this->phpqr->createcode($linkdata, $filelocation);
-        $imagepath = base_url() . "assets/userqr/" . $cardid . ".png";
-        return $imagepath;
-    }
-
-    function createUserQrCode_get($cardid) {
-        $this->load->library('phpqr');
-        $filelocation = APPPATH . "../assets/userqr/" . $cardid . ".png";
-        $linkdata = site_url("Api/getUserCard/" . $cardid);
-        $this->phpqr->createcode($linkdata, $filelocation);
-        $imagepath = base_url() . "assets/userqr/" . $cardid . ".png";
-        echo $imagepath;
+    function getUserCard_get($card_id) {
+        $usercard = $this->Card_model->cardDetails($card_id);
+        $this->response($usercard);
     }
 
     function getCardQr_get($cardid) {
@@ -365,30 +345,17 @@ class Apiv2 extends REST_Controller {
     }
 
     function getUsersCardAll_get($user_id = 1) {
-        $this->db->select("concat(first_name, ' ', last_name) as name, designation, company_name, visibility, image");
         $this->db->where('user_id', $user_id);
         $query = $this->db->get('card');
         $usercards = $query->result_array();
-        $usercardslist = array("public" => [], "private" => []);
-
+        $usercardslist = [];
         foreach ($usercards as $key => $value) {
-            $value["name"] = ucwords($value["name"]);
-            $value["designation"] = ucwords($value["designation"]);
-            $value["company_name"] = ucwords($value["company_name"]);
-            $image = $value["image"];
-            $default_image = base_url("assets/img/defaultuser.png");
-            $profile_image = base_url("assets/profile_image/$image");
-            $value["profile_image"] = $image ? $profile_image : $default_image;
-
-            if ($value["visibility"] == "Public") {
-                array_push($usercardslist["public"], $value);
-            }
-            else{
-                array_push($usercardslist["private"], $value);
-            }
+            $usercard = $this->Card_model->cardDetails($value["card_id"]);
+            array_push($usercardslist, $usercard);
         }
         return $this->response($usercardslist);
     }
+    
 
     function getDirectoryCardAll_get($user_id) {
         $this->db->where('visibility', "public");
