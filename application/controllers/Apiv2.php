@@ -11,18 +11,58 @@ class Apiv2 extends REST_Controller {
         $this->load->model('Card_model');
         $this->load->model('Event_model');
         $this->load->library('session');
-        $this->checklogin = $this->session->userdata('logged_in');
-        $this->user_id = $this->session->userdata('logged_in')['login_id'];
+        $this->API_ACCESS_KEY = "AAAAbw0xhr4:APA91bHrZptVEVRpQdGwg0TClX_JTcc2jqRU3Uhn_Qm6Qgj4G6BrO651YqZzDLlFzfTD4IvYTceShd5LEfZTEL7aOwcyTgAoGPQ9e6nU6f1_Pb9PabMFPb-zNWtZktaookSvCNw05IrA";
+        $this->user_id = $this->session->userdata('logged_in_id');
     }
 
     public function index() {
         $this->load->view('welcome_message');
     }
 
+    private function useCurl($url, $headers, $fields = null) {
+        // Open connection
+        $ch = curl_init();
+        if ($url) {
+            // Set the url, number of POST vars, POST data
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+            // Disabling SSL Certificate support temporarly
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            if ($fields) {
+                curl_setopt($ch, CURLOPT_POSTFIELDS, $fields);
+            }
+
+            // Execute post
+            $result = curl_exec($ch);
+            if ($result === FALSE) {
+                die('Curl failed: ' . curl_error($ch));
+            }
+
+            // Close connection
+            curl_close($ch);
+
+            return $result;
+        }
+    }
+
+    public function android($data, $reg_id_array) {
+        $url = 'https://fcm.googleapis.com/fcm/send';
+        $headers = array(
+            'Authorization: key=' . $this->API_ACCESS_KEY,
+            'Content-Type: application/json'
+        );
+        return $this->useCurl($url, $headers, json_encode($data));
+    }
+
     function getUserDetails($user_id) {
         $this->db->where('id', $user_id); //set column_name and value in which row need to update
         $query = $this->db->get('app_user');
         $userData = $query->row();
+        $imageurltemp = $userData->photo_url == "null" ? "https://ui-avatars.com/api/?name=" . $userData->name : $userData->photo_url;
+        $userData->photo_url = $imageurltemp;
         return $userData;
     }
 
@@ -37,41 +77,6 @@ class Apiv2 extends REST_Controller {
             $this->db->where("id", $pk_id);
             $this->db->update($tablename, $data);
         }
-    }
-
-    //function for product list
-    function loginOperation_get() {
-        $userid = $this->user_id;
-        $this->db->select('au.id,au.first_name,au.last_name,au.email,au.contact_no');
-        $this->db->from('admin_users au');
-        $this->db->where('id', $userid);
-        $this->db->limit(1);
-        $query = $this->db->get();
-        $result = $query->row();
-        $this->response($result);
-    }
-
-    //Login Function 
-    //function for product list
-    function loginOperation_post() {
-        $email = $this->post('contact_no');
-        $password = $this->post('password');
-        $this->db->select('au.id,au.first_name,au.last_name,au.email,au.contact_no');
-        $this->db->from('admin_users au');
-        $this->db->where('contact_no', $email);
-        $this->db->where('password', md5($password));
-        $this->db->limit(1);
-        $query = $this->db->get();
-        $result = $query->row();
-
-        $sess_data = array(
-            'username' => $result->email,
-            'first_name' => $result->first_name,
-            'last_name' => $result->last_name,
-            'login_id' => $result->id,
-        );
-        $this->session->set_userdata('logged_in', $sess_data);
-        $this->response($result);
     }
 
     function registerMobileGuest_post() {
@@ -107,19 +112,31 @@ class Apiv2 extends REST_Controller {
         $this->response($usercard);
     }
 
-    function getCardQr_get($cardid) {
+    function checkCurrentUser_get() {
+        $this->response(array("user_id" => $this->session->userdata('logged_in_id')));
+    }
+
+    function getCardQr_get($card_id) {
         $this->load->library('phpqr');
-        $this->db->where('card_id', $cardid);
-        $query = $this->db->get('card');
-        $userdata = $query->row();
-        $linkdata = site_url("Api/getUserCard/" . $userdata->card_id);
-//        header('Content-type: image/jpeg');
-        $this->phpqr->showcode($linkdata);
+
+        $usercard = $this->Card_model->cardDetails($card_id);
+
+        $qrdata = array();
+        if ($usercard["status"] == "200") {
+            $qrdatalist = ["name", "profile_image", "card_id", "designation"];
+            foreach ($qrdatalist as $key => $value) {
+                $qrdata[$value] = $usercard[$value];
+            }
+        } else {
+            $qrdata = $usercard;
+        }
+
+        $this->phpqr->showcode(json_encode($qrdata));
     }
 
     function createUserCard_get($userid) {
         //Set the Content Type
-        header('Content-type: image/jpeg');
+//        header('Content-type: image/jpeg');
         // Create Image From Existing File
         $jpg_image = imagecreatefromjpeg(APPPATH . "../assets/cardtemplate/card1.jpg");
         // Allocate A Color For The Text
@@ -138,7 +155,7 @@ class Apiv2 extends REST_Controller {
         $userdata = $query->row();
         $randid = rand(10000000, 99999999);
         $destination_image = APPPATH . "../assets/usercard/card1" . $userdata->id . $randid . ".jpg";
-        $filelocation = APPPATH . "../assets/userqr/" . $userdata->usercode . ".png";
+        $filelocation = APPPATH . "../assets/userqr/" . $userdata->id . ".png";
         $frame = imagecreatefrompng($filelocation);
 
         // Print Text On Image
@@ -150,102 +167,46 @@ class Apiv2 extends REST_Controller {
         imagettftext($jpg_image, 65, 0, 1250, 480, $blue, $font_path2, $userdata->company);
         imagecopymerge($jpg_image, $frame, 1400, 680, 0, 0, 800, 800, 100);
         // Send Image to Browser
-        imagejpeg($jpg_image, $destination_image);
-        $imagepath = base_url() . "assets/usercard/card1" . $userdata->id . $randid . ".jpg";
-
-        $this->db->set("cardimage", "card1" . $userdata->id . $randid . ".jpg");
-        $this->db->where('usercode', $userid);
-        $this->db->update("app_user");
-
-
-        $this->response(array("imagelink" => $imagepath));
+//        imagejpeg($jpg_image, $destination_image);
+//        $imagepath = base_url() . "assets/usercard/card1" . $userdata->id . $randid . ".jpg";
+//
+//        $this->db->set("cardimage", "card1" . $userdata->id . $randid . ".jpg");
+//        $this->db->where('usercode', $userid);
+//        $this->db->update("app_user");
+//
+//
+//        $this->response(array("imagelink" => $imagepath));
     }
 
-    function getUserDataByPassword_post() {
-        $this->config->load('rest', TRUE);
-        header('Access-Control-Allow-Origin: *');
-        header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
-        $password = $this->post('password');
-        $email = $this->post('email');
-        $this->db->where('password', $password);
-        $this->db->where('email', $email);
-        $query = $this->db->get('app_user');
-        $userdata = $query->row();
-        if ($userdata) {
-            $this->response(array("status" => "200", "userdata" => $userdata));
-        } else {
-            $this->response(array("status" => "100"));
-        }
-    }
-
-    function registration_post() {
-        $this->config->load('rest', TRUE);
-        header('Access-Control-Allow-Origin: *');
-        header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
-        $name = $this->post('displayName');
-        $email = $this->post('email');
-        $contact_no = "";
-        $password = rand(10000000, 99999999);
-        $usercode = rand(10000000, 99999999);
-        $usercode = $this->post('userId');
-        $profileimageurl = $this->post('imageUrl');
-        $regArray = array(
-            "name" => $name,
-            "email" => $email,
-            "contact_no" => $contact_no,
-            "password" => $password,
-            "usercode" => $usercode,
-            "datetime" => date("Y-m-d H:i:s a"),
-        );
-        $this->db->where('email', $email);
-        $query = $this->db->get('app_user');
-        $userdata = $query->row();
-        if ($userdata) {
-            unset($regArray['password']);
-            $this->db->set($regArray);
-            $this->db->where('email', $email); //set column_name and value in which row need to update
-            $this->db->update("app_user");
-            $this->response(array("status" => "200", "userdata" => $userdata));
-        } else {
-            $this->db->insert('app_user', $regArray);
-            $this->response(array("status" => "200", "userdata" => $regArray));
-        }
-    }
-
-    function registrationMobile_post() {
+    function registrationMobileGoogle_post() {
         $this->config->load('rest', TRUE);
         header('Access-Control-Allow-Origin: *');
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
         $name = $this->post('name');
         $email = $this->post('email');
-        $password = $this->post('password');
+        $profile_id = $this->post('id');
+        $photo_url = $this->post('photo_url');
+        $photo_type = $this->post('photo_type');
+        $profile_id = $this->post('profile_id');
         $contact_no = "";
-
-        $usercode = rand(10000000, 99999999);
-
         $regArray = array(
             "name" => $name,
             "email" => $email,
             "contact_no" => $contact_no,
-            "password" => $password,
-            "usercode" => "",
+            "photo_type" => "google",
+            "profile_id" => $profile_id,
+            "photo_url" => $photo_url,
             "datetime" => date("Y-m-d H:i:s a"),
         );
         $this->db->where('email', $email);
         $query = $this->db->get('app_user');
         $userdata = $query->row();
         if ($userdata) {
-
-
-            $this->response(array("status" => "300", "userdata" => $userdata, "message" => "Your Have Already Registered."));
+            $this->response(array("status" => "200", "userdata" => $userdata));
         } else {
             $this->db->insert('app_user', $regArray);
             $last_id = $this->db->insert_id();
-            $usercoden = $usercode . $last_id;
-            $this->db->set("usercode", $usercoden);
-            $this->db->where('id', $last_id); //set column_name and value in which row need to update
-            $this->db->update("app_user");
-            $regArray['usercode'] = $usercoden;
+            $regArray["id"] = $last_id;
             $this->response(array("status" => "200", "userdata" => $regArray));
         }
     }
@@ -321,12 +282,14 @@ class Apiv2 extends REST_Controller {
         foreach ($cartlist as $key => $value) {
             $this->db->where('id', $value['card_id']);
             $query = $this->db->get('card');
-            $user = $query->row();
+            $user = $query->row_array();
+
             if ($user) {
-                $user->connection_id = $value['id'];
+                $usercard = $this->Card_model->cardDetails($user['card_id']);
+                $usercard["connection_id"] = $value['id'];
 
 //            $user->qrcode = base_url() . "assets/usercard/" . $user->cardimage;
-                array_push($usercarddata, $user);
+                array_push($usercarddata, $usercard);
             }
         }
         return $this->response($usercarddata);
@@ -346,6 +309,7 @@ class Apiv2 extends REST_Controller {
 
     function getUsersCardAll_get($user_id = 1) {
         $this->db->where('user_id', $user_id);
+        $this->db->order_by("id desc");
         $query = $this->db->get('card');
         $usercards = $query->result_array();
         $usercardslist = [];
@@ -355,10 +319,9 @@ class Apiv2 extends REST_Controller {
         }
         return $this->response($usercardslist);
     }
-    
 
-    function getDirectoryCardAll_get($user_id) {
-        $this->db->where('visibility', "public");
+    function getDirectoryCardAll_get($user_id = 1) {
+
         $this->db->where("user_id !=$user_id");
         $query = $this->db->get('card');
         $usercards = $query->result_array();
@@ -367,16 +330,38 @@ class Apiv2 extends REST_Controller {
         foreach ($usercards as $key => $value) {
             $user_ids = $value['user_id'];
             $cart_id = $value['id'];
+            $usercard = $this->Card_model->cardDetails($value["card_id"]);
             $usercheck = $this->Product_model->checkUserConnection($user_id, $user_ids, $cart_id);
 
             if (isset($usercheck['connection'])) {
-                $value['connected'] = $usercheck['connection'];
+                $usercard['connected'] = $usercheck['connection'];
             } else {
-                $value['connected'] = '-';
+                $usercard['connected'] = '-';
             }
-            array_push($usercardlist, $value);
+
+            array_push($usercardlist, $usercard);
         }
         return $this->response($usercardlist);
+    }
+
+    function fileupload_post() {
+
+        $ext1 = explode('.', $_FILES['file']['name']);
+        $ext = strtolower(end($ext1));
+        $filename = $type . rand(1000, 10000);
+
+        $actfilname = $_FILES['file']['name'];
+
+        $filelocation = "assets/profile_image/";
+        move_uploaded_file($_FILES["file"]['tmp_name'], $filelocation . $actfilname);
+
+
+        $this->response(array("status" => "200"));
+    }
+
+    function testFile_get() {
+
+        echo $filelocation = APPPATH . "../assets/profile_image";
     }
 
     function createCard_post() {
@@ -403,6 +388,7 @@ class Apiv2 extends REST_Controller {
             "datetime" => date("Y-m-d H:i:s a"),
             "user_id" => $this->post('user_id'),
             "card_type" => $this->post("card_type"),
+            "country_code" => $this->post("country_code"),
             "visibility" => $visibility,
         );
         $this->db->insert('card', $regArray);
@@ -418,12 +404,11 @@ class Apiv2 extends REST_Controller {
 
         $cardid = $usercode . "" . $last_id;
 
-        $imagepath = base_url() . "assets/userqr/" . $cardid . ".png";
         $this->db->set("card_id", $cardid);
         $this->db->set("qrcode", "yes");
         $this->db->where('id', $last_id); //set column_name and value in which row need to update
         $this->db->update("card");
-        $cardurl = $this->createUserQrCode($cardid);
+
         $this->response(array("status" => "200", "userdata" => $regArray, "card_id" => $cardid, "message" => "Your card has been created."));
     }
 
@@ -431,13 +416,14 @@ class Apiv2 extends REST_Controller {
         $this->config->load('rest', TRUE);
         header('Access-Control-Allow-Origin: *');
         header("Access-Control-Allow-Methods: GET, POST, OPTIONS, PUT, DELETE");
-        $visibility = $this->post("visibiliey");
-        $visibilitytype = $visibility ? 'public' : 'private';
+
         $regArray = array(
-            "name" => $this->post('name'),
+            "first_name" => $this->post('first_name'),
+            "last_name" => $this->post('last_name'),
             "email" => $this->post('email'),
+            "image" => $this->post('image'),
             "contact_no" => $this->post('contact_no'),
-            "company_name" => $this->post('company'),
+            "company_name" => $this->post('company_name'),
             "designation" => $this->post('designation'),
             "industry" => $this->post('industry'),
             "address1" => $this->post('address1'),
@@ -446,21 +432,12 @@ class Apiv2 extends REST_Controller {
             "state" => $this->post('state'),
             "city" => $this->post('city'),
             "datetime" => date("Y-m-d H:i:s a"),
-            "user_id" => $this->post('user_id'),
-            "card_type" => $this->post("card_type"),
-            "visibility" => $visibilitytype,
+            "country_code" => $this->post("country_code"),
         );
         $this->db->set($regArray);
         $this->db->where('id', $card_id); //set column_name and value in which row need to update
         $this->db->update("card");
-        $this->response(array("status" => "200", "userdata" => $regArray));
-    }
-
-    function getEditCard_get($card_id) {
-        $this->db->where("id", $card_id);
-        $query = $this->db->get('card');
-        $carddetails = $query->row();
-        $this->response($carddetails);
+        $this->response(array("status" => "200", "userdata" => $regArray, "card_id" => $card_id, "message" => "Your card has been updated."));
     }
 
     function removeCard_post() {
@@ -515,6 +492,7 @@ class Apiv2 extends REST_Controller {
         $sender = $this->post('sender');
         $receiver = $this->post('receiver');
         $card_id = $this->post('card_id');
+        $message = $this->post('message');
         $regArray = array(
             "message" => $this->post('message'),
             "sender" => $this->post('sender'),
@@ -536,9 +514,10 @@ class Apiv2 extends REST_Controller {
             "datetime" => date("Y-m-d H:i:s a"),
             "read_status" => "0",
         );
-
-        $this->db->insert('user_message', $messageArray);
-        $last_message_id = $this->db->insert_id();
+        if ($message) {
+            $this->db->insert('user_message', $messageArray);
+            $last_message_id = $this->db->insert_id();
+        }
 
 
         if ($connectobj) {
@@ -589,9 +568,57 @@ class Apiv2 extends REST_Controller {
     //
     //
     // User message Controller
+
+    function chatUser_get($user_id) {
+        $this->db->where('id', $user_id); //set column_name and value in which row need to update
+        $query = $this->db->get("app_user");
+        $userobj = $query->row();
+        $userarray = array("status" => "100");
+        if ($userobj) {
+            $imageurltemp = $userobj->photo_url == "null" ? "https://ui-avatars.com/api/?name=" . $userobj->name : $userobj->photo_url;
+            $name = $userobj->name;
+            $userarray = array("name" => $name, "image" => $imageurltemp, "status" => "200");
+        }
+        $this->response($userarray);
+    }
+
+    function sendChatNotification($user_id, $sender_id, $message) {
+        $this->db->where('id', $user_id); //set column_name and value in which row need to update
+        $query = $this->db->get("app_user");
+        $userobj = $query->row();
+        if ($userobj) {
+            $imageurltemp = $userobj->photo_url == "null" ? "https://ui-avatars.com/api/?name=" . $userobj->name : $userobj->photo_url;
+            $name = $userobj->name;
+            $this->db->where('user_id', $user_id); //set column_name and value in which row need to update
+            $query2 = $this->db->get("gcm_registration");
+            $tokenobj = $query2->row();
+
+            if ($tokenobj) {
+
+                $data = [
+                    "to" => $tokenobj->reg_id,
+                    "notification" => [
+                        "body" => $message,
+                        "title" => "Chat Message from $name",
+                        "page" => "chat",
+                        "icon" => "ic_launcher",
+                        "image" => $imageurltemp
+                    ],
+                    "data" => array("user_id" => $sender_id)
+                ];
+                $this->android($data, [$tokenobj->reg_id]);
+            }
+        }
+    }
+
+    function sendChatNotification_get() {
+        $this->sendChatNotification(24, 23, "test message");
+    }
+
     function userMessage_post() {
         $sender = $this->post('sender');
         $receiver = $this->post('receiver');
+        $message = $this->post('message');
         $regArray = array(
             "message" => $this->post('message'),
             "sender" => $this->post('sender'),
@@ -599,9 +626,21 @@ class Apiv2 extends REST_Controller {
             "datetime" => date("Y-m-d H:i:s a"),
             "read_status" => "0",
         );
-
         $this->db->insert('user_message', $regArray);
         $last_id = $this->db->insert_id();
+        $this->sendChatNotification($receiver, $sender, $message);
+    }
+
+    function countUnseenMessage($user_id, $connect_id) {
+        $this->db->select("count(id) as count");
+        $this->db->where('receiver', $user_id);
+        if ($connect_id) {
+            $this->db->where('sender', $connect_id);
+        }//set column_name and value in which row need to update
+        $this->db->where('read_status', "0");
+        $query = $this->db->get("user_message");
+        $userobj = $query->row();
+        return $userobj->count;
     }
 
     function getLastMessage($user_id, $connect_id) {
@@ -627,8 +666,9 @@ SELECT * FROM user_message where sender = $user_id and receiver = $connect_id
         foreach ($messagearray as $key => $value) {
             $connect_id = $value['user_id'];
             $messageobj = $this->getLastMessage($user_id, $connect_id);
+            $count = $this->countUnseenMessage($user_id, $connect_id);
             $userdata = $this->getUserDetails($connect_id);
-            $userMessageTemp = array("message" => $messageobj, "user" => $userdata);
+            $userMessageTemp = array("message" => $messageobj, "user" => $userdata, "unseen" => $count);
             array_push($messageArrayTemp, $userMessageTemp);
         }
         $this->response($messageArrayTemp);
@@ -654,7 +694,7 @@ SELECT * FROM user_message where sender = $user_id and receiver = $connect_id
 
         $query = $this->db->query($query);
         $messagearray = $query->result_array();
-        $this->response(array("messges" => $messagearray, "user" => $userobj));
+        $this->response($messagearray);
     }
 
     function postEventWall_post() {
@@ -670,6 +710,45 @@ SELECT * FROM user_message where sender = $user_id and receiver = $connect_id
     }
 
     //end of user message controller
+
+    function setFCMToken_post() {
+        $postdata = $this->post();
+        $insertArray = array(
+            "model" => "",
+            "manufacturer" => "",
+            "uuid" => "",
+            "datetime" => date("Y-m-d H:m:s a"),
+            "user_id" => $postdata["user_id"],
+            "reg_id" => $postdata["token_id"],
+        );
+        $this->db->where("user_id", $postdata["user_id"]);
+        $query = $this->db->get("gcm_registration");
+        $querydata = $query->result_array();
+        if ($querydata) {
+            $this->db->set($insertArray)->where("user_id", $postdata["user_id"])->update("gcm_registration");
+            $this->response(array("status" => "200", "last_id" => $querydata[0]["id"]));
+        } else {
+            $this->db->insert("gcm_registration", $insertArray);
+            $insert_id = $this->db->insert_id();
+        }
+        $this->response(array("status" => "200", "last_id" => $insert_id));
+    }
+
+    function testNotification_get() {
+        $tokenid = "fItBW9yASM2ex_n8htEex9:APA91bH76PbREaw_A6mGNHUQEwKiwEV4iiLPeTFVReE8EW-nsRF8spY7qsgYtiWKTZJ2OhwMJtkdikgY-PgPVje8dGFk7ZiMj1ir9ZXLoOc_ItukaR3B_XYSK3d5ENV9_0No48M9xS1a";
+        $data = [
+            "to" => $tokenid,
+            "notification" => [
+                "body" => "This is message body 32322323 ",
+                "page" => "chat",
+                "icon" => "ic_launcher",
+                "image" => "https://lh3.googleusercontent.com/a-/AOh14GiB7yiRkI4V4-YdxtDt27CWqF1U-0ZhfQ3mT_96uA"
+            ],
+            "data" => array("channel_id" => "1215")
+        ];
+        echo $this->android($data, [$tokenid]);
+    }
+
 }
 
 ?>
