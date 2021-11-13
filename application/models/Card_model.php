@@ -21,8 +21,12 @@ class Card_model extends CI_Model {
         $this->phpqr->showcode($cardqr);
     }
 
-    function cardDetails($card_id) {
-        $this->db->where('card_id', $card_id);
+    function cardDetails($card_id, $by_id = 0) {
+        if ($by_id) {
+            $this->db->where('id', $card_id);
+        } else {
+            $this->db->where('card_id', $card_id);
+        }
         $query = $this->db->get('card');
         $carddata = $query->row_array();
         if ($carddata) {

@@ -529,6 +529,23 @@ class Apiv2 extends REST_Controller {
         }
     }
 
+    function requestConnections_get($user_id) {
+
+        $this->db->where("receiver", $user_id);
+        $this->db->where("connection", "No");
+        $this->db->order_by("id desc");
+        $query = $this->db->get("card_user_connection");
+        $connectionlist = $query->result_array();
+        $connectionfinal = [];
+        foreach ($connectionlist as $key => $value) {
+            $tempconnect = $value;
+            $tempconnect["sender"] = $this->getUserDetails($value["sender"]);
+            $tempconnect["card"] = $this->Card_model->cardDetails($value["card_id"], 1);
+            array_push($connectionfinal, $tempconnect);
+        }
+        $this->response($connectionfinal);
+    }
+
     function activeConnection_post() {
         $connection_id = $this->post('connection_id');
         $rtype = $this->post('rtype');
@@ -536,9 +553,11 @@ class Apiv2 extends REST_Controller {
             $this->db->set("connection", "Yes");
             $this->db->where('id', $connection_id); //set column_name and value in which row need to update
             $this->db->update("card_user_connection");
+            $this->response(array("message" => "Connect request has been accepted", "title" => "Connected"));
         } else {
             $this->db->where('id', $connection_id); //set column_name and value in which row need to update
             $this->db->delete("card_user_connection");
+            $this->response(array("message" => "Connect request has been rejected", "title" => "Rejected"));
         }
     }
 
@@ -583,7 +602,7 @@ class Apiv2 extends REST_Controller {
     }
 
     function sendChatNotification($user_id, $sender_id, $message) {
-        $this->db->where('id', $user_id); //set column_name and value in which row need to update
+        $this->db->where('id', $sender_id); //set column_name and value in which row need to update
         $query = $this->db->get("app_user");
         $userobj = $query->row();
         if ($userobj) {
@@ -592,6 +611,8 @@ class Apiv2 extends REST_Controller {
             $this->db->where('user_id', $user_id); //set column_name and value in which row need to update
             $query2 = $this->db->get("gcm_registration");
             $tokenobj = $query2->row();
+            
+            
 
             if ($tokenobj) {
 
