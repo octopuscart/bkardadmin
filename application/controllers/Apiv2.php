@@ -546,6 +546,18 @@ class Apiv2 extends REST_Controller {
         $this->response($connectionfinal);
     }
 
+    function countNotifications_get($user_id) {
+        $unseenmessge = $this->countUnseenMessage($user_id, 0);
+        $this->db->select("count(id) as count");
+        $this->db->where("receiver", $user_id);
+        $this->db->where("connection", "No");
+        $this->db->order_by("id desc");
+        $query = $this->db->get("card_user_connection");
+        $connectioncount = $query->row();
+        $totalcount = $unseenmessge + $connectioncount->count;
+         $this->response(array("count"=>$totalcount));
+    }
+
     function activeConnection_post() {
         $connection_id = $this->post('connection_id');
         $rtype = $this->post('rtype');
@@ -611,8 +623,8 @@ class Apiv2 extends REST_Controller {
             $this->db->where('user_id', $user_id); //set column_name and value in which row need to update
             $query2 = $this->db->get("gcm_registration");
             $tokenobj = $query2->row();
-            
-            
+
+
 
             if ($tokenobj) {
 
